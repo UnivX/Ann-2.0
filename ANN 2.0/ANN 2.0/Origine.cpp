@@ -91,12 +91,15 @@ double Neuron::ComputeValue()
 
 void Neuron::BackPropagation(double learning_rate)
 {
+
 	for (unsigned int i = 0; i < (*this->prev_neurons).size(); i++) {
-		(*this->prev_neurons)[i]->error = this->weights[i] * this->error * this->function_derivative(this->z);
-		this->weights[i] += (*this->prev_neurons)[i]->error * learning_rate;
+		//set the error to the prev layer
+		double new_error = this->weights[i] * this->error * this->function_derivative(this->z);
+		(*this->prev_neurons)[i]->error += new_error;
+		this->weights[i] -= new_error * learning_rate;
 	}
 
-	this->bias += this->error * learning_rate;
+	this->bias -= this->error * learning_rate;
 
 }
 
@@ -112,17 +115,25 @@ typedef std::vector<Neuron*> Layer;
 
 class NeuralNetwork {
 public:
+	NeuralNetwork();
 	~NeuralNetwork();
 	void SetInputSize(int size);
 	void AddLayer(int size, double(*_function)(const double&), double(*_function_derivative)(const double&));
 	void LinkLayers();
 	std::vector<double> ComputeOutput(std::vector<double> in);
-	std::vector<double> ComputeOutputMultithread(std::vector<double> in, int neurons_block_size_for_task = 10);
+	std::vector<double> ComputeOutputMultiThread(std::vector<double> in, int neurons_block_size_for_task = 10);
 	double Learn(std::vector<double> input, std::vector<double> expected_output, double learning_rate);
+	double LearnMultiThread(std::vector<double> input, std::vector<double> expected_output, double learning_rate, int neurons_block_size_for_task = 10);
 private:
+	int total_neurons;
 	Layer* input_layer;
 	std::vector<Layer*> hiden_layers;
 };
+
+NeuralNetwork::NeuralNetwork()
+{
+	this->total_neurons = 0;
+}
 
 NeuralNetwork::~NeuralNetwork()
 {
@@ -158,6 +169,7 @@ void NeuralNetwork::SetInputSize(int size)
 
 void NeuralNetwork::AddLayer(int size, double(*_function)(const double&), double(*_function_derivative)(const double&))
 {
+	this->total_neurons += size;
 	Layer* layer = new Layer;
 	for (int i = 0; i < size; i++)
 	{
@@ -219,10 +231,10 @@ std::vector<double> NeuralNetwork::ComputeOutput(std::vector<double> in)
 	return out;
 }
 
-std::vector<double> NeuralNetwork::ComputeOutputMultithread(std::vector<double> in, int neurons_block_size_for_task)
+std::vector<double> NeuralNetwork::ComputeOutputMultiThread(std::vector<double> in, int neurons_block_size_for_task)
 {
 	if ((*this->input_layer).size() != in.size()) {
-		std::cout << "Invalid input vector size in NeuralNetwork::ComputeOutputMultithread\n";
+		std::cout << "Invalid input vector size in NeuralNetwork::ComputeOutputMultiThread\n";
 		exit(-1);
 	}
 
@@ -237,15 +249,16 @@ std::vector<double> NeuralNetwork::ComputeOutputMultithread(std::vector<double> 
 	};
 
 	std::vector<std::future<void>> futures;
+	futures.reserve(this->total_neurons);
 
 	for (unsigned int i = 0; i < this->hiden_layers.size(); i++)
 	{
 		for (unsigned int e = 0; e < this->hiden_layers[i]->size(); e += neurons_block_size_for_task)
 		{
 			if(e + neurons_block_size_for_task < this->hiden_layers[i]->size())
-				futures.push_back(std::async(task, e, e + neurons_block_size_for_task, this->hiden_layers[i]));
+				futures.emplace_back(std::async(task, e, e + neurons_block_size_for_task, this->hiden_layers[i]));
 			else
-				futures.push_back(std::async(task, e, this->hiden_layers[i]->size(), this->hiden_layers[i]));
+				futures.emplace_back(std::async(task, e, this->hiden_layers[i]->size(), this->hiden_layers[i]));
 		}
 
 		for (int i = 0; i < futures.size(); i++)
@@ -274,7 +287,7 @@ double NeuralNetwork::Learn(std::vector<double> input, std::vector<double> expec
 
 	for (unsigned int i = 0; i < error.size(); i++)
 	{
-		error[i] = (pow(expected_output[i] - output[i], 2)) / 2;
+		error[i] = (pow(output[i] - expected_output[i], 2)) / 2;
 	}
 
 	Layer* last_layer = this->hiden_layers[this->hiden_layers.size() - 1];
@@ -295,7 +308,55 @@ double NeuralNetwork::Learn(std::vector<double> input, std::vector<double> expec
 		scalar_error += error[i];
 	}
 	
-	scalar_error /= error.size();
+	return scalar_error;
+}
+
+double NeuralNetwork::LearnMultiThread(std::vector<double> input, std::vector<double> expected_output, double learning_rate, int neurons_block_size_for_task)
+{
+	std::vector<double> output = this->ComputeOutputMultiThread(input, neurons_block_size_for_task);
+	std::vector<double> error(expected_output.size());
+
+	for (unsigned int i = 0; i < error.size(); i++)
+	{
+		error[i] = (pow(output[i] - expected_output[i], 2)) / 2;
+	}
+
+	Layer* last_layer = this->hiden_layers[this->hiden_layers.size() - 1];
+	for (unsigned int i = 0; i < last_layer->size(); i++)
+	{
+		(*last_layer)[i]->error = error[i];
+	}
+
+	std::function<void(int, int, double, std::vector<Neuron*>*)> task = [](int start, int end, double learning_rate, std::vector<Neuron*> * neurons_list) {
+		for (int i = start; i < end; i++) {
+			(*neurons_list)[i]->BackPropagation(learning_rate);
+		}
+	};
+
+	std::vector<std::future<void>> futures;
+	futures.reserve(this->total_neurons);
+
+	for (unsigned int i = 0; i < this->hiden_layers.size(); i++)
+	{
+		for (unsigned int e = 0; e < this->hiden_layers[i]->size(); e += neurons_block_size_for_task)
+		{
+			if (e + neurons_block_size_for_task < this->hiden_layers[i]->size())
+				futures.emplace_back(std::async(task, e, e + neurons_block_size_for_task, learning_rate, this->hiden_layers[i]));
+			else
+				futures.emplace_back(std::async(task, e, this->hiden_layers[i]->size(), learning_rate, this->hiden_layers[i]));
+		}
+
+		for (int i = 0; i < futures.size(); i++)
+		{
+			futures[i].wait();
+		}
+	}
+
+	double scalar_error = 0;
+	for (unsigned int i = 0; i < error.size(); i++)
+	{
+		scalar_error += error[i];
+	}
 
 	return scalar_error;
 }

@@ -4,12 +4,7 @@
  
  
  ## Build
- you can build it with visual studio 19, or using g++ with:
- 
-
-  
-
-    g++ -std=c++11 Origine.cpp
+ you can build it with visual studio 19
 
 ## code example
 
@@ -48,7 +43,7 @@ link all layers of neuron together (very important)
 
     ann.LinkLayers();
     
-to train the neural network use the function `ann.Learn(Input, ExpectedOutput, LearningRate)` Example:
+to train the neural network use the function `ann.Learn(Input, ExpectedOutput, LearningRate)` or `ann.LearnMultiThread(Input, ExpectedOutput, LearningRate, NeuronsCalculatedPerTask)`Example:
 
     for(int i = 0; i < epoch; i++)
     {
@@ -56,7 +51,7 @@ to train the neural network use the function `ann.Learn(Input, ExpectedOutput, L
 	    std::cout << "Error: " << error << std::endl;
 	}
 
-compute the output of the neural network with `ann.ComputeOutput(input)` Example:
+compute the output of the neural network with `ann.ComputeOutput(input)`  or `ann.ComputeOutputMultiThread(Input, NeuronsCalculatedPerTask) Example`:
 
     std::vector<double> output = ann.ComputeOutput(input);
     
