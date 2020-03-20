@@ -110,6 +110,7 @@ typedef std::vector<Neuron*> Layer;
 
 class NeuralNetwork {
 public:
+	~NeuralNetwork();
 	void SetInputSize(int size);
 	void AddLayer(int size, double(*_function)(const double&), double(*_function_derivative)(const double&));
 	void LinkLayers();
@@ -120,6 +121,28 @@ private:
 	std::vector<Layer*> hiden_layers;
 };
 
+NeuralNetwork::~NeuralNetwork()
+{
+	for (int i = 0; i < this->input_layer->size(); i++)
+	{
+		delete (*this->input_layer)[i];
+	}
+
+	for (int i = 0; i < this->hiden_layers.size(); i++)
+	{
+		for (int e = 0; e < this->hiden_layers[i]->size(); e++)
+		{
+			delete (*this->hiden_layers[i])[e];
+		}
+	}
+
+	delete this->input_layer;
+
+	for (int i = 0; i < this->hiden_layers.size(); i++)
+	{
+		delete this->hiden_layers[i];
+	}
+}
 
 void NeuralNetwork::SetInputSize(int size)
 {
