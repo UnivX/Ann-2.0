@@ -9,7 +9,7 @@
 
   
 
-    g++ Origine.cpp
+    g++ -std=c++11 Origine.cpp
 
 ## code example
 

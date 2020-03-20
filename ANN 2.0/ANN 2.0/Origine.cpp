@@ -117,6 +117,7 @@ public:
 	void AddLayer(int size, double(*_function)(const double&), double(*_function_derivative)(const double&));
 	void LinkLayers();
 	std::vector<double> ComputeOutput(std::vector<double> in);
+	std::vector<double> ComputeOutputMultithread(std::vector<double> in, int neurons_block_size_for_task = 10);
 	double Learn(std::vector<double> input, std::vector<double> expected_output, double learning_rate);
 private:
 	Layer* input_layer;
