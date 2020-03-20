@@ -142,6 +142,7 @@ NeuralNetwork::~NeuralNetwork()
 	{
 		delete this->hiden_layers[i];
 	}
+	std::cout << "deleted all\n";
 }
 
 void NeuralNetwork::SetInputSize(int size)
@@ -251,7 +252,7 @@ double NeuralNetwork::Learn(std::vector<double> input, std::vector<double> expec
 
 int main()
 {
-	//create neural network
+	//create NeuralNetwork
 	NeuralNetwork ann;
 	ann.SetInputSize(2);
 	ann.AddLayer(32, ReLu, ReLuDerivative);
@@ -260,7 +261,7 @@ int main()
 	ann.AddLayer(1, ReLu, ReLuDerivative);
 	ann.LinkLayers();
 
-	//Vector of two elements
+	//vector of two elements
 	std::vector<double> input;
 	input.push_back(1.f);
 	input.push_back(1.f);
@@ -268,6 +269,7 @@ int main()
 	//get the output
 	std::vector<double> output = ann.ComputeOutput(input);
 
+	//print the output
 	for (unsigned int i = 0; i < output.size(); i++)
 	{
 		std::cout << "[" << i << "]: " << output[i] << std::endl;
