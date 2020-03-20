@@ -260,7 +260,7 @@ int main()
 	ann.AddLayer(1, ReLu, ReLuDerivative);
 	ann.LinkLayers();
 
-	//two elemets vector
+	//Vector of two elements
 	std::vector<double> input;
 	input.push_back(1.f);
 	input.push_back(1.f);
