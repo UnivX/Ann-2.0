@@ -1,6 +1,8 @@
 #include <iostream>
 #include <vector>
 #include <math.h>
+#include <future>
+#include <functional>
 
 double Sigmoid(const double& f)
 {
@@ -66,7 +68,7 @@ void Neuron::SetPrevNeurons(std::vector<Neuron*> *_prev_neurons)
 	this->weights.resize(this->prev_neurons->size());
 	for (unsigned int i = 0; i < this->weights.size(); i++)
 	{
-		this->weights[i] = (rand() % (100+1))/(this->prev_neurons->size()*2);
+		this->weights[i] = (rand() % (100+1)) / (20.f * this->prev_neurons->size());
 	}
 }
 
@@ -142,7 +144,6 @@ NeuralNetwork::~NeuralNetwork()
 	{
 		delete this->hiden_layers[i];
 	}
-	std::cout << "deleted all\n";
 }
 
 void NeuralNetwork::SetInputSize(int size)
@@ -217,6 +218,54 @@ std::vector<double> NeuralNetwork::ComputeOutput(std::vector<double> in)
 	return out;
 }
 
+std::vector<double> NeuralNetwork::ComputeOutputMultithread(std::vector<double> in, int neurons_block_size_for_task)
+{
+	if ((*this->input_layer).size() != in.size()) {
+		std::cout << "Invalid input vector size in NeuralNetwork::ComputeOutputMultithread\n";
+		exit(-1);
+	}
+
+	for (unsigned int i = 0; i < in.size(); i++) {
+		(*this->input_layer)[i]->output = in[i];
+	}
+
+	std::function<void(int, int, std::vector<Neuron*>*)> task = [](int start, int end, std::vector<Neuron*> * neurons_list) {
+		for (int i = start; i < end; i++) {
+			(*neurons_list)[i]->ComputeValue();
+		}
+	};
+
+	std::vector<std::future<void>> futures;
+
+	for (unsigned int i = 0; i < this->hiden_layers.size(); i++)
+	{
+		for (unsigned int e = 0; e < this->hiden_layers[i]->size(); e += neurons_block_size_for_task)
+		{
+			if(e + neurons_block_size_for_task < this->hiden_layers[i]->size())
+				futures.push_back(std::async(task, e, e + neurons_block_size_for_task, this->hiden_layers[i]));
+			else
+				futures.push_back(std::async(task, e, this->hiden_layers[i]->size(), this->hiden_layers[i]));
+		}
+
+		for (int i = 0; i < futures.size(); i++)
+		{
+			futures[i].wait();
+		}
+	}
+
+	std::vector<double> out;
+
+	Layer* last_layer = this->hiden_layers[this->hiden_layers.size() - 1];
+
+	for (unsigned int i = 0; i < last_layer->size(); i++)
+	{
+		out.push_back((*last_layer)[i]->output);
+	}
+
+	return out;
+}
+
+
 double NeuralNetwork::Learn(std::vector<double> input, std::vector<double> expected_output, double learning_rate)
 {
 	std::vector<double> output = this->ComputeOutput(input);
@@ -275,3 +324,4 @@ int main()
 		std::cout << "[" << i << "]: " << output[i] << std::endl;
 	}
 }
+
